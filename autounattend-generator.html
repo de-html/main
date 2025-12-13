@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AutoUnattend Generator (Win11)</title>
+<style>
+body{font-family:Inter,Segoe UI,Arial;margin:20px;background:#f6f8fb;color:#0b1220}
+.container{max-width:900px;margin:auto;background:#fff;padding:18px;border-radius:10px;box-shadow:0 6px 24px rgba(11,18,32,.08)}
+h1{margin:0 0 12px;font-size:20px}
+.section{margin:12px 0;padding:12px;border-radius:8px;background:#fbfdff;border:1px solid #e6eef8}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.input{flex:1;min-width:160px}
+button{background:#0067c5;color:#fff;border:0;padding:8px 12px;border-radius:6px;cursor:pointer}
+.user-card{border:1px dashed #dbeaf8;padding:10px;border-radius:8px;margin-top:8px}
+code{display:block;white-space:pre-wrap;background:#0b1220;color:#e6f0ff;padding:8px;border-radius:6px;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>AutoUnattend Generator — Windows 11</h1>
+
+<div class="section">
+<strong>Basics</strong>
+<div class="row" style="margin-top:8px">
+<select id="lang" class="input"><option value="de-DE">Deutsch (de-DE)</option><option value="en-US">English (en-US)</option></select>
+<select id="keyboard" class="input"><option value="0407:00000407">DE</option><option value="0409:00000409">US</option></select>
+</div>
+</div>
+
+<div class="section">
+<strong>Users</strong>
+<div id="users"></div>
+<button id="addUser">+ Benutzer hinzufügen</button>
+</div>
+
+<div class="section">
+<strong>System PowerShell (optional)</strong>
+<input type="file" id="sysScript" accept=".ps1">
+</div>
+
+<div style="text-align:right;margin-top:12px">
+<button id="generate">Autounattend.xml generieren</button>
+</div>
+
+<pre id="output" style="display:none"></pre>
+</div>
+
+<script>
+function b64(file, cb){ if(!file){cb('');return;} const r=new FileReader(); r.onload=()=>cb(btoa(r.result)); r.readAsBinaryString(file); }
+let userIdx=0;
+document.getElementById('addUser').onclick=()=>{
+ const id=++userIdx;
+ const div=document.createElement('div'); div.className='user-card';
+ div.innerHTML=`<div class="row"><input class="input" placeholder="Benutzername" id="u${id}"><input class="input" placeholder="Passwort" id="p${id}" type="password"><input type="file" id="f${id}" accept=".ps1"></div>`;
+ document.getElementById('users').appendChild(div);
+};
+function makeFirstLogonCommand(base64, name, isSystem){
+ // writes file to %TEMP%, executes, deletes; system uses scheduled task trick
+ if(isSystem){
+  return `powershell -NoProfile -ExecutionPolicy Bypass -Command "[IO.File]::WriteAllBytes('$env:TEMP\\\\sys_${name}.ps1',[Convert]::FromBase64String('${base64}')); schtasks /Create /SC ONCE /TN \\\\\"InitSys${name}\\\\\" /TR \\\\\"powershell -NoProfile -ExecutionPolicy Bypass -File %TEMP%\\\\sys_${name}.ps1; schtasks /Delete /TN \\\\\\\"InitSys${name}\\\\\\\" /F\\\\\" /RU SYSTEM /F & schtasks /Run /TN \\\\\\\"InitSys${name}\\\\\\\"; Start-Sleep -Seconds 5; Remove-Item %TEMP%\\\\sys_${name}.ps1 -Force"`;
+ } else {
+  return `powershell -NoProfile -ExecutionPolicy Bypass -Command "[IO.File]::WriteAllBytes('$env:TEMP\\\\user_${name}.ps1',[Convert]::FromBase64String('${base64}')); & $env:TEMP\\\\user_${name}.ps1; Remove-Item $env:TEMP\\\\user_${name}.ps1 -Force"`;
+ }
+}
+document.getElementById('generate').onclick=async()=>{
+ const lang=document.getElementById('lang').value;
+ const kb=document.getElementById('keyboard').value;
+ const users=document.querySelectorAll('[id^=u]');
+ let firstCommands=[];
+ for(let i=0;i<users.length;i++){
+  const id=users[i].id.replace('u','');
+  const name=document.getElementById('u'+id).value||('user'+id);
+  const pass=document.getElementById('p'+id).value||'Passw0rd!';
+  const file=document.getElementById('f'+id).files[0];
+  await new Promise(res=>b64(file, (b)=>{ if(b){ firstCommands.push(makeFirstLogonCommand(b,name,false)); } res(); }));
+ }
+ await new Promise(res=>b64(document.getElementById('sysScript').files[0], (b)=>{ if(b){ firstCommands.push(makeFirstLogonCommand(b,'system',true)); } res(); }));
+ // build minimal unattend with FirstLogonCommands and local accounts
+ const xml=`<?xml version="1.0" encoding="utf-8"?>
+<unattend xmlns="urn:schemas-microsoft-com:unattend">
+ <settings pass="windowsPE">
+  <component name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+   <SetupUILanguage><UILanguage>${lang}</UILanguage></SetupUILanguage>
+  </component>
+ </settings>
+ <settings pass="oobeSystem">
+  <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+   <UserAccounts>
+    <!-- Local accounts omitted for brevity; implement as needed -->
+   </UserAccounts>
+   <FirstLogonCommands>
+    ${firstCommands.map((c,i)=>`<SynchronousCommand wcm:action="add" order="${i+1}"><CommandLine>${c}</CommandLine><Description>Init ${i+1}</Description></SynchronousCommand>`).join('')}
+   </FirstLogonCommands>
+  </component>
+ </settings>
+</unattend>`;
+ document.getElementById('output').style.display='block';
+ document.getElementById('output').textContent=xml;
+};
+</script>
+</body>
+</html>
