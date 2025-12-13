@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AutoUnattend Generator (Windows 11) — Vollständig</title>
+<style>
+body{font-family:Segoe UI,Arial;background:#f4f7fb;color:#0b1220;margin:20px}
+.container{max-width:980px;margin:auto;background:#fff;padding:18px;border-radius:10px;box-shadow:0 8px 30px rgba(11,18,32,.06)}
+h1{font-size:20px;margin:0 0 12px}
+.section{padding:12px;border-radius:8px;background:#fbfdff;border:1px solid #e6eef8;margin-bottom:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.input{flex:1;min-width:160px;padding:8px;border-radius:6px;border:1px solid #d7e6fb}
+button{background:#0067c5;color:#fff;border:0;padding:8px 12px;border-radius:6px;cursor:pointer}
+.user-card{border:1px dashed #dbeaf8;padding:10px;border-radius:8px;margin-top:8px}
+pre{background:#0b1220;color:#e6f0ff;padding:12px;border-radius:8px;overflow:auto}
+small.note{color:#556}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>AutoUnattend Generator — Windows 11 (vollständig)</h1>
+
+<div class="section">
+<strong>Basics</strong>
+<div class="row" style="margin-top:8px">
+<select id="lang" class="input"><option value="de-DE">Deutsch (de-DE)</option><option value="en-US">English (en-US)</option></select>
+<select id="keyboard" class="input"><option value="0407:00000407">Tastatur DE</option><option value="0409:00000409">Tastatur US</option></select>
+</div>
+</div>
+
+<div class="section">
+<strong>Users</strong>
+<div id="users"></div>
+<button id="addUser">+ Benutzer hinzufügen</button>
+<small class="note">Pro Benutzer: Name, Passwort, optionales .ps1 (wird temporär ausgeführt und gelöscht)</small>
+</div>
+
+<div class="section">
+<strong>System PowerShell (optional)</strong>
+<input type="file" id="sysScript" accept=".ps1">
+<small class="note">Wird als SYSTEM via einmaligem Scheduled Task ausgeführt und danach entfernt</small>
+</div>
+
+<div style="text-align:right">
+<button id="generate">Autounattend.xml generieren</button>
+</div>
+
+<pre id="output" style="display:none"></pre>
+</div>
+
+<script>
+function fileToBase64(file){ return new Promise(res=>{ if(!file) return res(''); const r=new FileReader(); r.onload=()=>res(btoa(r.result)); r.readAsBinaryString(file); }); }
+let idx=0;
+document.getElementById('addUser').onclick=()=>{ idx++; const d=document.createElement('div'); d.className='user-card'; d.innerHTML=`
+ <div class="row">
+  <input class="input" id="u${idx}" placeholder="Benutzername">
+  <input class="input" id="p${idx}" placeholder="Passwort" type="password">
+  <input id="f${idx}" type="file" accept=".ps1">
+ </div>`; document.getElementById('users').appendChild(d);
+};
+
+function makeUserXml(name, pass){
+ return `<LocalAccount><Name>${name}</Name><Group>Administrators</Group><Password><Value>${pass}</Value><PlainText>true</PlainText></Password></LocalAccount>`;
+}
+
+function makeFirstLogonCommandForUser(base64, name, order){
+ // schreibt user script nach %TEMP%, führt aus, löscht
+ const cmd = `[IO.File]::WriteAllBytes('$env:TEMP\\\\user_${name}.ps1',[Convert]::FromBase64String('${base64}')); Start-Process -FilePath powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','$env:TEMP\\\\user_${name}.ps1' -Wait; Remove-Item $env:TEMP\\\\user_${name}.ps1 -Force`;
+ return `<SynchronousCommand wcm:action="add" order="${order}"><CommandLine>%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "${cmd.replace(/"/g,'&quot;')}"</CommandLine><Description>Init user ${name}</Description></SynchronousCommand>`;
+}
+
+function makeFirstLogonCommandForSystem(base64, order){
+ // schreibt sys script, erstellt einmalige scheduled task als SYSTEM, startet und löscht
+ const write = `[IO.File]::WriteAllBytes('$env:TEMP\\\\sys_init.ps1',[Convert]::FromBase64String('${base64}'))`;
+ const createTask = `schtasks /Create /SC ONCE /TN InitSysScript /TR "powershell -NoProfile -ExecutionPolicy Bypass -File %TEMP%\\\\sys_init.ps1; Remove-Item %TEMP%\\\\sys_init.ps1 -Force; schtasks /Delete /TN InitSysScript /F" /RL HIGHEST /RU SYSTEM /F`;
+ const run = `schtasks /Run /TN InitSysScript`;
+ const cmd = `${write}; Start-Process -FilePath cmd -ArgumentList '/c','${createTask} & ${run}' -WindowStyle Hidden -Wait`;
+ return `<SynchronousCommand wcm:action="add" order="${order}"><CommandLine>%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "${cmd.replace(/"/g,'&quot;')}"</CommandLine><Description>Init system</Description></SynchronousCommand>`;
+}
+
+document.getElementById('generate').onclick=async()=>{
+ const lang=document.getElementById('lang').value;
+ const kb=document.getElementById('keyboard').value;
+ const userEls=document.querySelectorAll('[id^=u]');
+ let localAccounts=[], firstCommands=[];
+ let order=1;
+ for(let i=0;i<userEls.length;i++){
+  const id=userEls[i].id.replace('u','');
+  const name=document.getElementById('u'+id).value||('user'+id);
+  const pass=document.getElementById('p'+id).value||'Passw0rd!';
+  localAccounts.push(makeUserXml(name,pass));
+  const file=document.getElementById('f'+id).files[0];
+  const b64=await fileToBase64(file);
+  if(b64) firstCommands.push(makeFirstLogonCommandForUser(b64,name,order++));
+ }
+ const sysFile=document.getElementById('sysScript').files[0];
+ const sysB64=await fileToBase64(sysFile);
+ if(sysB64) firstCommands.push(makeFirstLogonCommandForSystem(sysB64,order++));
+
+ const xml = `<?xml version="1.0" encoding="utf-8"?>
+<unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+ <settings pass="windowsPE">
+  <component name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+   <SetupUILanguage><UILanguage>${lang}</UILanguage></SetupUILanguage>
+  </component>
+ </settings>
+ <settings pass="oobeSystem">
+  <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+   <UserAccounts>
+    <LocalAccounts>
+     ${localAccounts.join('\n')}
+    </LocalAccounts>
+   </UserAccounts>
+   <FirstLogonCommands>
+    ${firstCommands.join('\n')}
+   </FirstLogonCommands>
+  </component>
+ </settings>
+</unattend>`;
+ const out=document.getElementById('output'); out.style.display='block'; out.textContent=xml;
+};
+</script>
+</body>
+</html>
