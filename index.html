@@ -63,7 +63,6 @@
 
     <table id="fileTable">
         <tr><th>Name</th><th>Typ</th><th>Größe</th></tr>
-        <!-- Manuell gepflegte Einträge -->
   <tbody id="include"></tbody>
 </table>
 
@@ -77,18 +76,17 @@
 </script>
 
 <script>
-// Darkmode automatisch aktivieren
+
 document.addEventListener("DOMContentLoaded", () => {
     document.body.classList.add("dark");
     localStorage.setItem("theme", "dark");
 });
 
-// Live-Suche
 document.getElementById("searchBox").addEventListener("keyup", function() {
     let filter = this.value.toLowerCase();
     let rows = document.querySelectorAll("#fileTable tr");
     rows.forEach((row, i) => {
-        if (i === 0) return; // Kopfzeile überspringen
+        if (i === 0) return;
         let text = row.innerText.toLowerCase();
         row.style.display = text.includes(filter) ? "" : "none";
     });
