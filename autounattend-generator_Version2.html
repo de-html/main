@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>autounattend-generator — Windows 11 (überarbeitet)</title>
+  <style>
+    :root{ --bg:#0f1724; --card:#0b1220; --accent:#3b82f6; --muted:#94a3b8; --ok:#16a34a; --err:#ef4444; color-scheme: dark; }
+    body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial; margin:0; background:linear-gradient(180deg,#071226 0%, #051028 100%); color:#e6eef8; min-height:100vh; display:flex; align-items:flex-start; justify-content:center; padding:28px;}
+    .wrap{max-width:1140px; width:100%;}
+    header{display:flex; align-items:center; gap:12px; margin-bottom:18px;}
+    h1{font-size:18px; margin:0;}
+    .grid{display:grid; grid-template-columns: 1fr 460px; gap:18px;}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.04); padding:14px; border-radius:10px;}
+    label{display:block; font-size:13px; color:var(--muted); margin-bottom:6px;}
+    select,input[type="text"],input[type="password"],textarea{width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background:transparent; color:inherit; box-sizing:border-box;}
+    .row{display:flex; gap:10px;}
+    .small{width:48%;}
+    .users-list{display:flex; flex-direction:column; gap:12px; margin-top:8px;}
+    .user{padding:10px; border-radius:8px; background:rgba(255,255,255,0.012); border:1px solid rgba(255,255,255,0.02);}
+    .user-header{display:flex; justify-content:space-between; align-items:center; gap:8px;}
+    button{background:var(--accent); color:white; border:0; padding:8px 12px; border-radius:8px; cursor:pointer;}
+    button.ghost{background:transparent; border:1px solid rgba(255,255,255,0.04); color:var(--muted);}
+    .drop{border:2px dashed rgba(255,255,255,0.04); padding:10px; border-radius:8px; text-align:center; color:var(--muted); cursor:pointer;}
+    .meta{font-size:12px; color:var(--muted);}
+    pre{white-space:pre-wrap; word-break:break-word; background:rgba(0,0,0,0.25); padding:10px; border-radius:8px; max-height:640px; overflow:auto; font-size:12px;}
+    .controls{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;}
+    .feedback{font-size:13px; margin-top:8px;}
+    .valid{color:var(--ok);} .invalid{color:var(--err);}
+    footer{margin-top:12px; font-size:12px; color:var(--muted);}
+    .note{font-size:12px; color:var(--muted); margin-top:6px;}
+    @media (max-width:1000px){ .grid{grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><rect rx='5' fill='%233b82f6' width='24' height='24'/><path d='M6 8h12v2H6zM6 12h8v2H6z' fill='white'/></svg>" alt="logo" />
+      <div>
+        <h1>autounattend-generator — Windows 11 (überarbeitet)</h1>
+        <div class="meta">Erzeugt eine herunterladbare autounattend.xml. Strikte Anforderungen: System- vs. User-Ausführung, temporäre Artefakte, temporäre ExecutionPolicy, kein persistenter Systemzustand.</div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="card" aria-labelledby="mainTitle">
+        <h2 id="mainTitle" style="margin:0 0 8px 0;">Konfiguration</h2>
+
+        <label for="language">UI Language</label>
+        <select id="language"></select>
+
+        <div style="height:8px"></div>
+
+        <label for="systemLocale">SystemLocale</label>
+        <select id="systemLocale"></select>
+
+        <div style="height:8px"></div>
+
+        <label for="inputLocale">InputLocale (Tastatur)</label>
+        <select id="inputLocale"></select>
+
+        <hr style="margin:12px 0; opacity:0.06" />
+
+        <h3 style="margin:0 0 8px 0;">System‑Skript (optional)</h3>
+        <label for="sysExecution">Ausführungsort</label>
+        <select id="sysExecution">
+          <option value="specialize">Specialize (RunSynchronous) — sofort während Setup, läuft als SYSTEM</option>
+          <option value="setupcomplete">SetupComplete — am Ende des Setups, läuft als SYSTEM</option>
+        </select>
+        <div style="height:8px"></div>
+        <div id="sysDrop" class="drop" tabindex="0">Drag & Drop .ps1 hier oder anklicken (System‑Kontext)</div>
+        <div id="sysName" class="meta" style="margin-top:6px;"></div>
+        <div class="note">Hinweis: System‑Skripte werden als temporäre Dateien in %windir%\Temp oder in %windir%\Setup\Scripts angelegt und nach Ausführung gelöscht.</div>
+
+        <hr style="margin:12px 0; opacity:0.06" />
+
+        <h3 style="margin:0 0 8px 0;">Benutzer</h3>
+        <div class="meta">Mehrere lokale Konten mit optionalen pro‑User PowerShell‑Skripten, die beim ersten Login im Benutzerkontext ausgeführt und danach gelöscht werden.</div>
+        <div style="height:8px"></div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button id="addUser">+ Benutzer hinzufügen</button>
+          <button id="clearUsers" class="ghost">Alle entfernen</button>
+        </div>
+
+        <div id="users" class="users-list" aria-live="polite"></div>
+
+        <hr style="margin:12px 0; opacity:0.06" />
+
+        <div class="controls">
+          <button id="generate">autounattend.xml generieren</button>
+          <button id="download" class="ghost" disabled>Herunterladen</button>
+          <button id="copy" class="ghost" disabled>In Zwischenablage kopieren</button>
+        </div>
+
+        <div id="genFeedback" class="feedback"></div>
+        <footer>
+          Sicherheits‑Hinweis: Diese Seite speichert nichts serverseitig. Die erzeugte autounattend.xml enthält nach Windows‑Unattend‑Vorgaben PlainText‑Passwörter; behandeln Sie die Datei vertraulich. ExecutionPolicy wird nur temporär für den Prozess gesetzt (-ExecutionPolicy Bypass) und nicht persistent geändert. Es werden keine Defender‑Ausnahmen oder dauerhaften Registry‑Änderungen vorgenommen.
+        </footer>
+      </section>
+
+      <aside class="card" aria-labelledby="previewTitle">
+        <h2 id="previewTitle" style="margin:0 0 8px 0;">Live Vorschau — autounattend.xml</h2>
+        <pre id="preview">&lt;-- noch keine autounattend.xml --&gt;</pre>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    // --- Locale mappings (erweiterbar) ---
+    const LOCALES = [
+      { id: 'en-US', ui: 'en-US', system: 'en-US', input: '0409:00000409', name: 'English (United States)' },
+      { id: 'de-DE', ui: 'de-DE', system: 'de-DE', input: '0407:00000407', name: 'Deutsch (Deutschland)' },
+      { id: 'fr-FR', ui: 'fr-FR', system: 'fr-FR', input: '040c:0000040c', name: 'Français (France)' },
+      { id: 'es-ES', ui: 'es-ES', system: 'es-ES', input: '0C0A:0000040A', name: 'Español (España)' }
+    ];
+
+    // --- Helpers ---
+    const el = id => document.getElementById(id);
+    function escapeXml(unsafe) {
+      return (unsafe||'').replace(/[<>&'"]/g, function (c) {
+        switch (c) {
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '&': return '&amp;';
+          case '\'': return '&apos;';
+          case '"': return '&quot;';
+        }
+      });
+    }
+
+    // UTF-16LE base64 for PowerShell -EncodedCommand
+    function utf16leBase64(str) {
+      const bytes = [];
+      for (let i = 0; i < str.length; i++) {
+        const code = str.charCodeAt(i);
+        bytes.push(code & 0xff);
+        bytes.push((code >> 8) & 0xff);
+      }
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      return btoa(binary);
+    }
+
+    // base64 of UTF-8 (for writing arbitrary file content via FromBase64String)
+    function toBase64Utf8(str) {
+      return btoa(unescape(encodeURIComponent(str || '')));
+    }
+
+    // --- UI init ---
+    (function init() {
+      const lang = el('language'), sys = el('systemLocale'), inp = el('inputLocale');
+      LOCALES.forEach(l => {
+        const o1 = document.createElement('option'); o1.value = l.ui; o1.textContent = l.name + ' — ' + l.ui; lang.appendChild(o1);
+        const o2 = document.createElement('option'); o2.value = l.system; o2.textContent = l.name + ' — ' + l.system; sys.appendChild(o2);
+        const o3 = document.createElement('option'); o3.value = l.input; o3.textContent = l.name + ' — ' + l.input; inp.appendChild(o3);
+      });
+      lang.value = 'de-DE'; sys.value = 'de-DE'; inp.value = '0407:00000407';
+      bindControls();
+    })();
+
+    // --- State ---
+    let users = []; // {id, name, password, admin, scriptName, scriptContent}
+    let systemScript = null; // {name, content}
+    let generatedXml = '';
+
+    // --- File handling / Drag&Drop ---
+    const sysDrop = el('sysDrop');
+    sysDrop.addEventListener('click', () => filePicker(handleSystemFile));
+    sysDrop.addEventListener('dragover', (e) => { e.preventDefault(); sysDrop.style.borderColor = 'rgba(59,130,246,0.8)'; });
+    sysDrop.addEventListener('dragleave', () => { sysDrop.style.borderColor = ''; });
+    sysDrop.addEventListener('drop', (e) => { e.preventDefault(); sysDrop.style.borderColor=''; const f = e.dataTransfer.files && e.dataTransfer.files[0]; if(f) readFile(f, handleSystemFile); });
+
+    function filePicker(cb){
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = '.ps1,text/plain';
+      inp.onchange = () => { if (inp.files && inp.files[0]) readFile(inp.files[0], cb); };
+      inp.click();
+    }
+    function readFile(file, cb){
+      const r = new FileReader();
+      r.onload = () => cb(file.name, r.result);
+      r.readAsText(file);
+    }
+    function handleSystemFile(name, content){
+      systemScript = {name, content};
+      el('sysName').textContent = `System script: ${name}`;
+    }
+
+    // --- User UI ---
+    function bindControls(){
+      el('addUser').addEventListener('click', addUserUI);
+      el('clearUsers').addEventListener('click', () => { users = []; renderUsers(); });
+      el('generate').addEventListener('click', generateUnattend);
+      el('download').addEventListener('click', downloadXml);
+      el('copy').addEventListener('click', copyPreview);
+    }
+
+    function addUserUI(){
+      const id = 'u' + Math.random().toString(36).slice(2,9);
+      const u = { id, name: 'user'+(users.length+1), password: '', admin: false, scriptName:null, scriptContent:null };
+      users.push(u);
+      renderUsers();
+    }
+
+    function renderUsers(){
+      const container = el('users'); container.innerHTML = '';
+      users.forEach((u, idx) => {
+        const div = document.createElement('div'); div.className = 'user';
+        const header = document.createElement('div'); header.className = 'user-header';
+        const title = document.createElement('div'); title.innerHTML = `<strong>${escapeXml(u.name)}</strong> <span class="meta">(#${idx+1})</span>`;
+        const actions = document.createElement('div');
+        const del = document.createElement('button'); del.className='ghost'; del.textContent='Entfernen'; del.onclick = () => { users = users.filter(x => x.id!==u.id); renderUsers(); };
+        actions.appendChild(del);
+        header.appendChild(title); header.appendChild(actions);
+        div.appendChild(header);
+
+        // form fields
+        const fldName = document.createElement('input'); fldName.type='text'; fldName.value=u.name;
+        fldName.oninput = (e) => { u.name = e.target.value; renderUsers(); };
+        const fldPass = document.createElement('input'); fldPass.type='password'; fldPass.placeholder='Passwort';
+        fldPass.oninput = (e) => { u.password = e.target.value; updatePasswordFeedback(div, u); };
+        const row = document.createElement('div'); row.className='row'; row.style.marginTop='8px';
+        const sp1 = document.createElement('div'); sp1.style.width='60%'; sp1.appendChild(createLabeled('Benutzername', fldName));
+        const sp2 = document.createElement('div'); sp2.style.width='40%';
+        const adminChk = document.createElement('label'); adminChk.style.fontSize='13px'; adminChk.innerHTML = `<input type="checkbox"${u.admin? ' checked':''}> Administrator`;
+        adminChk.querySelector('input').onchange = (e) => { u.admin = e.target.checked; };
+        sp2.appendChild(adminChk);
+        row.appendChild(sp1); row.appendChild(sp2);
+        div.appendChild(row);
+        const passBlock = document.createElement('div'); passBlock.style.marginTop='8px'; passBlock.appendChild(createLabeled('Passwort', fldPass));
+        div.appendChild(passBlock);
+
+        // password feedback
+        const pf = document.createElement('div'); pf.className='meta'; pf.style.marginTop='6px';
+        passBlock.appendChild(pf);
+        updatePasswordFeedback(div, u);
+
+        // dropzone for user script
+        const userDrop = document.createElement('div'); userDrop.className='drop'; userDrop.textContent='Drag & Drop .ps1 hier oder anklicken (User‑Kontext)';
+        userDrop.style.marginTop='10px';
+        userDrop.addEventListener('click', () => filePicker((n,c)=>{ u.scriptName=n; u.scriptContent=c; renderUsers(); }));
+        userDrop.addEventListener('dragover', (e) => { e.preventDefault(); userDrop.style.borderColor='rgba(59,130,246,0.8)'; });
+        userDrop.addEventListener('dragleave', () => { userDrop.style.borderColor=''; });
+        userDrop.addEventListener('drop', (e) => { e.preventDefault(); userDrop.style.borderColor=''; const f = e.dataTransfer.files && e.dataTransfer.files[0]; if(f) readFile(f, (n,c)=>{ u.scriptName=n; u.scriptContent=c; renderUsers(); }); });
+        div.appendChild(userDrop);
+        const scriptMeta = document.createElement('div'); scriptMeta.className='meta'; scriptMeta.style.marginTop='6px';
+        scriptMeta.textContent = u.scriptName ? `User script: ${u.scriptName}` : 'Kein User‑Script';
+        div.appendChild(scriptMeta);
+
+        container.appendChild(div);
+      });
+
+      el('preview').textContent = generatedXml || el('preview').textContent;
+    }
+
+    function createLabeled(labelText, inputEl){
+      const wrap = document.createElement('div');
+      const lbl = document.createElement('label'); lbl.textContent = labelText;
+      wrap.appendChild(lbl); wrap.appendChild(inputEl);
+      return wrap;
+    }
+
+    function updatePasswordFeedback(container, u){
+      const pf = container.querySelector('.meta') || null;
+      let text = '';
+      let ok = true;
+      const p = u.password || '';
+      if (p.length < 8) { text += 'Mindestens 8 Zeichen. '; ok = false; }
+      if (!(/[a-z]/.test(p))) { text += 'Kleinbuchstabe fehlt. '; ok = false; }
+      if (!(/[A-Z]/.test(p))) { text += 'Großbuchstabe fehlt. '; ok = false; }
+      if (!(/\d/.test(p))) { text += 'Ziffer fehlt. '; ok = false; }
+      if (!(/[^A-Za-z0-9]/.test(p))) { text += 'Sonderzeichen fehlt. '; ok = false; }
+      if (p.length===0) { text = 'Kein Passwort gesetzt.'; ok = false; }
+      if (pf) { pf.textContent = text; pf.className = 'meta ' + (ok ? 'valid' : 'invalid'); }
+    }
+
+    // --- XML generation ---
+    function generateUnattend(){
+      // validation
+      if (users.length === 0) {
+        el('genFeedback').innerHTML = '<span class="invalid">Bitte mindestens einen Benutzer anlegen.</span>';
+        return;
+      }
+      for (const u of users) {
+        if (!u.name || !u.password) {
+          el('genFeedback').innerHTML = '<span class="invalid">Alle Benutzer benötigen Name & Passwort.</span>';
+          return;
+        }
+      }
+      el('genFeedback').innerHTML = '';
+
+      // LocalAccounts XML
+      const usersXml = users.map(u => {
+        const groupsXml = u.admin ? `<Group>Administrators</Group>` : '';
+        return `
+        <LocalAccount wcm:action="add">
+          <Name>${escapeXml(u.name)}</Name>
+          <Password>
+            <Value>${escapeXml(u.password)}</Value>
+            <PlainText>true</PlainText>
+          </Password>
+          ${groupsXml}
+        </LocalAccount>`;
+      }).join('\n');
+
+      // Build RunSynchronous commands for system script (specialize pass)
+      const runSyncCommands = [];
+      let order = 1;
+
+      // Helper: create a powershell -EncodedCommand that writes a base64 payload to a file, executes it, and removes it.
+      function makeExecAndCleanupCommand(targetPath, base64Payload, isUserContext=false) {
+        // $b = '...' ; [IO.File]::WriteAllBytes('C:\path.ps1',[Convert]::FromBase64String($b)); powershell -NoProfile -ExecutionPolicy Bypass -File 'C:\path.ps1'; Remove-Item 'C:\path.ps1' -Force -ErrorAction SilentlyContinue
+        // For RunSynchronous we prefer a single-encoded PowerShell one-liner (EncodedCommand) executed via powershell -EncodedCommand
+        const inner = [
+          `$b='${base64Payload}';`,
+          `[IO.File]::WriteAllBytes('${targetPath}',[Convert]::FromBase64String($b));`,
+          // Execute script: ensure process-scoped bypass
+          `powershell -NoProfile -ExecutionPolicy Bypass -File '${targetPath}';`,
+          `Remove-Item '${targetPath}' -Force -ErrorAction SilentlyContinue;`
+        ].join(' ');
+        return `powershell -NoProfile -EncodedCommand ${utf16leBase64(inner)}`;
+      }
+
+      // System script handling
+      const sysExecMode = el('sysExecution').value; // 'specialize' or 'setupcomplete'
+      if (systemScript && systemScript.content) {
+        const payloadB64 = toBase64Utf8(systemScript.content);
+        const sysTemp = `C:\\Windows\\Temp\\autounattend-system-${Math.random().toString(36).slice(2,8)}.ps1`;
+
+        if (sysExecMode === 'specialize') {
+          // Directly execute during specialize (RunSynchronous) as SYSTEM
+          const cmd = makeExecAndCleanupCommand(sysTemp, payloadB64, false);
+          runSyncCommands.push({
+            Order: order++,
+            Path: cmd,
+            Description: 'autounattend: execute system ps1 during specialize'
+          });
+        } else {
+          // setupcomplete: create a SetupComplete.cmd that will run later as SYSTEM.
+          // We'll create two RunSynchronous commands:
+          // 1) write the PS1 payload to C:\Windows\Temp\...
+          // 2) write C:\Windows\Setup\Scripts\SetupComplete.cmd that runs the PS1 and deletes files (and itself)
+          const setupPs1 = sysTemp;
+          // 1) write PS1 now
+          const writePs1Inner = [
+            `$b='${payloadB64}';`,
+            `[IO.File]::WriteAllBytes('${setupPs1}',[Convert]::FromBase64String($b));`
+          ].join(' ');
+          const writePs1Cmd = `powershell -NoProfile -EncodedCommand ${utf16leBase64(writePs1Inner)}`;
+          runSyncCommands.push({ Order: order++, Path: writePs1Cmd, Description: 'autounattend: write system ps1 for SetupComplete' });
+
+          // 2) create SetupComplete.cmd content that invokes the PS1 and deletes both script and itself
+          // SetupComplete.cmd content (cmd script):
+          // @echo off
+          // powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Windows\Temp\autounattend-system-....ps1"
+          // del /f /q "%windir%\Setup\Scripts\SetupComplete.cmd"
+          // del /f /q "C:\Windows\Temp\autounattend-system-....ps1"
+          const setupCompleteCmdContent = [
+`@echo off`,
+`powershell -NoProfile -ExecutionPolicy Bypass -File "${setupPs1}"`,
+`del /f /q "%windir%\\Setup\\Scripts\\SetupComplete.cmd" >nul 2>&1`,
+`del /f /q "${setupPs1}" >nul 2>&1`
+          ].join('\r\n');
+
+          const setupCompleteB64 = toBase64Utf8(setupCompleteCmdContent);
+          // use PowerShell to write the SetupComplete.cmd file (in RunSynchronous)
+          const writeSetupCompleteInner = [
+            `$b='${setupCompleteB64}';`,
+            `$path='$env:windir\\Setup\\Scripts\\SetupComplete.cmd';`,
+            `[IO.File]::WriteAllBytes($path,[Convert]::FromBase64String($b));`
+          ].join(' ');
+          const writeSetupCompleteCmd = `powershell -NoProfile -EncodedCommand ${utf16leBase64(writeSetupCompleteInner)}`;
+          runSyncCommands.push({ Order: order++, Path: writeSetupCompleteCmd, Description: 'autounattend: create SetupComplete.cmd' });
+        }
+
+        // add a best-effort cleanup command in specialize to remove any leftover autounattend-* in %windir%\Temp
+        const cleanupInner = `Get-ChildItem -Path C:\\Windows\\Temp -Filter 'autounattend-*' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue;`;
+        runSyncCommands.push({ Order: order++, Path: `powershell -NoProfile -EncodedCommand ${utf16leBase64(cleanupInner)}`, Description: 'autounattend: best-effort cleanup' });
+      }
+
+      // --- FirstLogonCommands for per-user scripts (oobeSystem) ---
+      const firstLogonCommands = [];
+      let flOrder = 1;
+      users.forEach(u => {
+        if (u.scriptContent) {
+          const payloadB64 = toBase64Utf8(u.scriptContent);
+          // target in user's temp folder; when executed at first logon, %USERPROFILE% resolves to the user
+          const targetPath = '%USERPROFILE%\\AppData\\Local\\Temp\\autounattend-user-' + encodeURIComponent(u.name) + '-' + Math.random().toString(36).slice(2,8) + '.ps1';
+          // inner powershell to write, execute and remove
+          const inner = [
+            `$b='${payloadB64}';`,
+            `$t='${targetPath}';`,
+            `[IO.File]::WriteAllBytes($t,[Convert]::FromBase64String($b));`,
+            `powershell -NoProfile -ExecutionPolicy Bypass -File $t;`,
+            `Remove-Item $t -Force -ErrorAction SilentlyContinue;`
+          ].join(' ');
+          const enc = utf16leBase64(inner);
+          // Use CommandLine element with powershell -EncodedCommand ...; FirstLogonCommands uses <SynchronousCommand><CommandLine>...
+          firstLogonCommands.push({
+            Order: flOrder++,
+            CommandLine: `powershell -NoProfile -EncodedCommand ${enc}`,
+            Description: `autounattend: run user script for ${u.name}`
+          });
+        }
+      });
+
+      // final best-effort user cleanup (in FirstLogon too)
+      if (firstLogonCommands.length > 0) {
+        const cleanupInnerUser = `Get-ChildItem -Path $env:LOCALAPPDATA\\Temp -Filter 'autounattend-user-*' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue;`;
+        const encCleanupUser = utf16leBase64(cleanupInnerUser);
+        firstLogonCommands.push({ Order: flOrder++, CommandLine: `powershell -NoProfile -EncodedCommand ${encCleanupUser}`, Description: 'autounattend: user best-effort cleanup' });
+      }
+
+      // --- Build XML fragments ---
+
+      // RunSynchronous XML (specialize pass)
+      const runSyncXml = runSyncCommands.map(c => {
+        // Path element expects the command to execute (e.g., cmd /c ... or powershell ...). Use Path element and simple description.
+        return `
+          <RunSynchronousCommand>
+            <Order>${c.Order}</Order>
+            <Path>${escapeXml(c.Path)}</Path>
+            <Description>${escapeXml(c.Description || '')}</Description>
+          </RunSynchronousCommand>`;
+      }).join('\n');
+
+      // FirstLogonCommands XML (oobeSystem)
+      const flcXml = firstLogonCommands.map(c => {
+        return `
+          <SynchronousCommand>
+            <Order>${c.Order}</Order>
+            <Description>${escapeXml(c.Description || '')}</Description>
+            <CommandLine>${escapeXml(c.CommandLine)}</CommandLine>
+          </SynchronousCommand>`;
+      }).join('\n');
+
+      // International settings mapped from selects
+      const uiLang = el('language').value;
+      const sysLocale = el('systemLocale').value;
+      const inputLocale = el('inputLocale').value;
+
+      // Compose final autounattend.xml
+      // Structure:
+      // - specialize pass with RunSynchronous under Microsoft-Windows-Deployment
+      // - oobeSystem pass with Microsoft-Windows-International-Core and Microsoft-Windows-Shell-Setup (LocalAccounts + FirstLogonCommands)
+      const xml = `<?xml version="1.0" encoding="utf-8"?>
+<unattend xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <!-- Generated by autounattend-generator.html (clientseitig). Handle file confidentially. -->
+  <settings pass="specialize">
+    <component name="Microsoft-Windows-Deployment" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns="urn:schemas-microsoft-com:unattend:Microsoft-Windows-Deployment">
+${runSyncXml ? `<RunSynchronous>${runSyncXml}
+      </RunSynchronous>` : ''}
+    </component>
+  </settings>
+
+  <settings pass="oobeSystem">
+    <component name="Microsoft-Windows-International-Core" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns="urn:schemas-microsoft-com:unattend:Microsoft-Windows-International-Core">
+      <InputLocale>${escapeXml(inputLocale)}</InputLocale>
+      <SystemLocale>${escapeXml(sysLocale)}</SystemLocale>
+      <UILanguage>${escapeXml(uiLang)}</UILanguage>
+      <UserLocale>${escapeXml(uiLang)}</UserLocale>
+    </component>
+
+    <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns="urn:schemas-microsoft-com:unattend:Microsoft-Windows-Shell-Setup">
+      <AutoLogon>
+        <Enabled>false</Enabled>
+      </AutoLogon>
+
+      <UserAccounts>
+        <LocalAccounts>
+${usersXml}
+        </LocalAccounts>
+      </UserAccounts>
+
+      ${flcXml ? `<FirstLogonCommands>${flcXml}
+      </FirstLogonCommands>` : ''}
+    </component>
+  </settings>
+
+  <!-- Additional passes/components can be added if needed. -->
+</unattend>`;
+
+      generatedXml = xml.trim();
+      el('preview').textContent = generatedXml;
+      el('download').disabled = false;
+      el('copy').disabled = false;
+      el('genFeedback').innerHTML = `<span class="valid">autounattend.xml erzeugt — Vorschau aktualisiert. Datei kann heruntergeladen werden.</span>`;
+    }
+
+    // --- Download / Clipboard ---
+    function downloadXml(){
+      if (!generatedXml) return;
+      const blob = new Blob([generatedXml], {type:'application/xml'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'autounattend.xml';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 5000);
+      el('genFeedback').innerHTML = `<span class="valid">Download gestartet.</span>`;
+    }
+    function copyPreview(){
+      if (!generatedXml) return;
+      navigator.clipboard.writeText(generatedXml).then(()=> {
+        el('genFeedback').innerHTML = `<span class="valid">XML in die Zwischenablage kopiert.</span>`;
+      }, (err) => {
+        el('genFeedback').innerHTML = `<span class="invalid">Kopieren fehlgeschlagen: ${err}</span>`;
+      });
+    }
+
+    // accessibility
+    sysDrop.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); filePicker(handleSystemFile); } });
+    el('preview').textContent = '<Noch keine autounattend.xml generiert — fülle Formular aus und klicke "autounattend.xml generieren".>';
+  </script>
+</body>
+</html>
