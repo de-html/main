@@ -223,7 +223,7 @@
         const pf = document.createElement('div'); pf.className='meta'; pf.style.marginTop='6px';
         pf.textContent = '---';
         passBlock.appendChild(pf);
-        const userDrop = document.createElement('div'); userDrop.className='drop'; userDrop.textContent='Drag & Drop .ps1 hier oder anklicken (User‑Kontext)';
+        const userDrop = document.createElement('div'); userDrop.className='drop'; userDrop.textContent='Drag & Drop';
         userDrop.style.marginTop='10px';
         userDrop.addEventListener('click', () => filePicker((n,c)=>{ u.scriptName=n; u.scriptContent=c; renderUsers(); }));
         userDrop.addEventListener('dragover', (e) => { e.preventDefault(); userDrop.style.borderColor='rgba(59,130,246,0.8)'; });
