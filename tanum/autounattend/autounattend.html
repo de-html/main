@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>autounattend-generator — Windows 11 (angepasst)</title>
+  <title>autounattend</title>
   <style>
     :root{ --bg:#0f1724; --card:#0b1220; --accent:#3b82f6; --muted:#94a3b8; --ok:#16a34a; --err:#ef4444; color-scheme: dark; }
     body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial; margin:0; background:linear-gradient(180deg,#071226 0%, #051028 100%); color:#e6eef8; min-height:100vh; display:flex; align-items:flex-start; justify-content:center; padding:28px;}
@@ -37,8 +37,8 @@
     <header>
       <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'><rect rx='5' fill='%233b82f6' width='24' height='24'/><path d='M6 8h12v2H6zM6 12h8v2H6z' fill='white'/></svg>" alt="logo" />
       <div>
-        <h1>autounattend-generator — Windows 11 (angepasst)</h1>
-        <div class="meta">Erzeugt eine herunterladbare autounattend.xml. Keine Passwort‑Vorgaben; initialer Cleanup vor Ausführung der Hilfsartefakte.</div>
+        <h1>autounattend</h1>
+        <div class="meta">:-)</div>
       </div>
     </header>
 
@@ -64,18 +64,18 @@
         <h3 style="margin:0 0 8px 0;">System‑Skript (optional)</h3>
         <label for="sysExecution">Ausführungsort</label>
         <select id="sysExecution">
-          <option value="specialize">Specialize (RunSynchronous) — läuft als SYSTEM während Setup</option>
-          <option value="setupcomplete">SetupComplete — am Ende des Setups, läuft als SYSTEM</option>
+          <option value="specialize">SYSTEM während Setup</option>
+          <option value="setupcomplete">SYSTEM Ende von Setup</option>
         </select>
         <div style="height:8px"></div>
-        <div id="sysDrop" class="drop" tabindex="0">Drag & Drop .ps1 hier oder anklicken (System‑Kontext)</div>
+        <div id="sysDrop" class="drop" tabindex="0">Drag & Drop</div>
         <div id="sysName" class="meta" style="margin-top:6px;"></div>
-        <div class="note">Hinweis: System‑Skripte werden temporär in %windir%\Temp oder %windir%\Setup\Scripts angelegt und nach Ausführung gelöscht.</div>
+        <div class="note">Hinweis: System‑Skripte = temp</div>
 
         <hr style="margin:12px 0; opacity:0.06" />
 
         <h3 style="margin:0 0 8px 0;">Benutzer</h3>
-        <div class="meta">Mehrere lokale Konten mit optionalen pro‑User PowerShell‑Skripten, die beim ersten Login ausgeführt und danach gelöscht werden. Es gibt keine Anforderungen an Passwörter — optional.</div>
+        <div class="meta">Multikonten</div>
         <div style="height:8px"></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button id="addUser">+ Benutzer hinzufügen</button>
@@ -87,19 +87,19 @@
         <hr style="margin:12px 0; opacity:0.06" />
 
         <div class="controls">
-          <button id="generate">autounattend.xml generieren</button>
+          <button id="generate">generieren</button>
           <button id="download" class="ghost" disabled>Herunterladen</button>
-          <button id="copy" class="ghost" disabled>In Zwischenablage kopieren</button>
+          <button id="copy" class="ghost" disabled>kopieren</button>
         </div>
 
         <div id="genFeedback" class="feedback"></div>
         <footer>
-          Sicherheits‑Hinweis: Diese Seite speichert nichts serverseitig. Die erzeugte autounattend.xml enthält nach Windows‑Unattend‑Vorgaben eventuell PlainText‑Passwörter; behandeln Sie die Datei vertraulich. ExecutionPolicy wird nur temporär für den Prozess gesetzt (-ExecutionPolicy Bypass) und nicht persistent geändert. Es werden keine Defender‑Ausnahmen oder dauerhaften Registry‑Änderungen vorgenommen.
+          © florianthepro 2025
         </footer>
       </section>
 
       <aside class="card" aria-labelledby="previewTitle">
-        <h2 id="previewTitle" style="margin:0 0 8px 0;">Live Vorschau — autounattend.xml</h2>
+        <h2 id="previewTitle" style="margin:0 0 8px 0;">Live Vorschau</h2>
         <pre id="preview">&lt;-- noch keine autounattend.xml --&gt;</pre>
       </aside>
     </div>
