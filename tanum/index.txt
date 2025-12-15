@@ -1,5 +1,5 @@
         <tr>
-            <td>◀️ <a href="../">Neuer-Ordner</a></td>
+            <td>◀️ <a href="../">main</a></td>
             <td>Ordner</td>
             <td>-</td>
         </tr>
@@ -7,4 +7,4 @@
             <td>📄 <a href="https://de-html.github.io/main/tanum/Ticket" target="_blank">Ticket.html</a></td>
             <td>Page</td>
             <td>-</td>
-        </tr>w
+        </tr>
