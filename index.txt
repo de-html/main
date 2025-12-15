@@ -1,4 +1,9 @@
         <tr>
+            <td>◀️ <a href="../">Neuer-Ordner</a></td>
+            <td>Ordner</td>
+            <td>-</td>
+        </tr>
+        <tr>
             <td>📁 <a href="link">Neuer-Ordner</a></td>
             <td>Ordner</td>
             <td>-</td>
