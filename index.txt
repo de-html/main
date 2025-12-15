@@ -1,9 +1,4 @@
         <tr>
-            <td>◀️ <a href="../">de-html</a></td>
-            <td>Ordner</td>
-            <td>-</td>
-        </tr>
-        <tr>
             <td>📁 <a href="tanum">tanum</a></td>
             <td>Ordner</td>
             <td>-</td>
